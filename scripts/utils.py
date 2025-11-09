@@ -10,7 +10,7 @@ def pitch_class_to_kern(pitch_class, octave):
     """
     note_names = ['c', 'c#', 'd', 'd#', 'e', 'f', 'f#', 'g', 'g#', 'a', 'a#', 'b']
     base = note_names[pitch_class % 12]
-    octave_shift = octave - 4
+    octave_shift = octave
     if octave_shift > 0:
         base = base.lower() * (1 + octave_shift)
     elif octave_shift < 0:
@@ -131,7 +131,7 @@ def harmony_to_kern(score_metadata):
     """
     Generate harmony string for a single song.
     Args:
-        score_metadata: annotations["num_beats"], annotations["harmony"]
+        score_metadata: annotations["melody"], annotations["harmony"]
     Returns:
         str: .krn content as plain text
     """
@@ -140,83 +140,98 @@ def harmony_to_kern(score_metadata):
     kern_lines.extend(['*'] * 3)
     # initialization
     harmony = score_metadata.get('harmony', [{}])
-    total_beats = score_metadata.get('num_beats')
+    melody = score_metadata.get('melody', [{}])
+    total_beats = len(melody)
     total_beats_int = int(total_beats)
     beat_line = ['.'] * total_beats_int
-    # chords    
-    for chord in harmony:
+    melody_idx = 0
+    harmony_idx = 0
+    # iterate  
+    while harmony_idx < len(harmony) and melody_idx < len(melody):
+        chord = harmony[harmony_idx]
         onset = chord['onset']
-        # offset = chord['offset']
+        offset = chord['offset']
+        har_duration = offset - onset
+        ## chord label
         root = chord['root_pitch_class']
         intervals = chord['root_position_intervals']
-        # major or minor
+        ### major or minor
         if intervals == [4, 3]:
             suffix = ''
         elif intervals == [3, 4]:
             suffix = 'm'
         else:
             suffix = '?'
-        # concat to chord labels
+        ### concat to chord labels
         note_names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
         chord_label = note_names[root] + suffix
-        # fill chord label in beat line
-        if 0 <= onset < total_beats_int:
-            beat_line[onset] = chord_label
+        ## align melody spine
+        anchor_idx = melody_idx
+        total_mel_dur = 0.0
+
+        while melody_idx < len(melody) and total_mel_dur < har_duration:
+            mel = melody[melody_idx]
+            mel_dur = mel["offset"] - mel["onset"]
+            total_mel_dur += mel_dur
+            melody_idx += 1
+
+        beat_line[anchor_idx] = chord_label
+        harmony_idx += 1
+
     # to kern spine
     for label in beat_line:
         kern_lines.append(label)
         
     kern_lines.append("*-")
     return kern_lines
-    
-    
+
 if __name__ == "__main__":
-    # # test pitch_class_to_kern func
-    # test_cases = [
-    #     (0, 4),   # c
-    #     (4, 5),   # ee
-    #     (11, 2),  # BB
-    #     (7, 3),   # G
-    # ]
+    # test pitch_class_to_kern func
+    test_cases = [
+        (0, 4),   # c
+        (4, 5),   # ee
+        (11, 2),  # BB
+        (7, 3),   # G
+    ]
 
-    # for pc, octv in test_cases:
-    #     kern_note = pitch_class_to_kern(pc, octv)
-    #     print(f"pitch_class: {pc}, octave: {octv} → kern: {kern_note}")
+    for pc, octv in test_cases:
+        kern_note = pitch_class_to_kern(pc, octv)
+        print(f"pitch_class: {pc}, octave: {octv} → kern: {kern_note}")
     
-    # # test duration_to_kern func
-    # test_durations = [1.0, 0.5, 0.499999, 0.3]
-    # for dur in test_durations:
-    #     print(f"{dur} beat → {duration_to_kern(dur)}")
+    # test duration_to_kern func
+    test_durations = [1.0, 0.5, 0.499999, 0.3]
+    for dur in test_durations:
+        print(f"{dur} beat → {duration_to_kern(dur)}")
         
-    # # test melody_to_kern func
-    # melody = [
-    #     {"onset": 1.0, "offset": 2.0, "pitch_class": 11, "octave": 2},  # 4BB
-    #     {"onset": 2.0, "offset": 3.0, "pitch_class": 0, "octave": 3},   # 4C
-    #     {"onset": 3.0, "offset": 4.0, "pitch_class": 4, "octave": 5},   # 4ee
-    #     {"onset": 4.0, "offset": 8.0, "pitch_class": 7, "octave": 2},   # 1GG
-    # ]
-    # result = melody_to_kern(melody)
-    # print("Kern melody:", result)
+    # test melody_to_kern func
+    melody = [
+        {"onset": 1.0, "offset": 2.0, "pitch_class": 11, "octave": 2},  # 4BB
+        {"onset": 2.0, "offset": 3.0, "pitch_class": 0, "octave": 3},   # 4C
+        {"onset": 3.0, "offset": 4.0, "pitch_class": 4, "octave": 5},   # 4ee
+        {"onset": 4.0, "offset": 8.0, "pitch_class": 7, "octave": 2},   # 1GG
+    ]
+    result = melody_to_kern(melody)
+    print("Kern melody:", result)
     
-    # # test generate_kern func
-    # sample_metadata = {
-    #     "meters": [
-    #         {
-    #             "beat": 0,
-    #             "beats_per_bar": 4,
-    #             "beat_unit": 4
-    #         }
-    #     ],
-    #     "melody": [
-    #         {"onset": 0.0, "offset": 1.0, "octave": 3, "pitch_class": 4},   # 4E
-    #         {"onset": 1.0, "offset": 2.0, "octave": 3, "pitch_class": 2},   # 4D
-    #         {"onset": 2.0, "offset": 3.0, "octave": 3, "pitch_class": 0},   # 4C
-    #         {"onset": 3.0, "offset": 4.0, "octave": 3, "pitch_class": 4},   # 4E
-    #     ]
-    # }
+    # test generate_kern func
+    sample_metadata = {
+        "meters": [
+            {
+                "beat": 0,
+                "beats_per_bar": 4,
+                "beat_unit": 4
+            }
+        ],
+        "melody": [
+            {"onset": 0.0, "offset": 1.0, "octave": 3, "pitch_class": 4},   # 4E
+            {"onset": 1.0, "offset": 2.0, "octave": 3, "pitch_class": 2},   # 4D
+            {"onset": 2.0, "offset": 3.0, "octave": 3, "pitch_class": 0},   # 4C
+            {"onset": 3.0, "offset": 4.0, "octave": 3, "pitch_class": 4},   # 4E
+        ]
+    }
 
-    # kern_output = generate_kern(sample_metadata)
-    # print("\n".join(kern_output))
+    kern_output = generate_kern(sample_metadata)
+    print("\n".join(kern_output))
     
     # test harmony_to_kern func
     sample_metadata = {
@@ -224,7 +239,13 @@ if __name__ == "__main__":
         {"onset": 0, "offset": 2, "root_pitch_class": 0, "root_position_intervals": [4, 3]},
         {"onset": 2, "offset": 4, "root_pitch_class": 9, "root_position_intervals": [3, 4]},
     ],
-    "num_beats": 4
+    "melody": [
+            {"onset": 0.0, "offset": 1.0, "octave": 3, "pitch_class": 4},   # 4E
+            {"onset": 1.0, "offset": 2.0, "octave": 3, "pitch_class": 2},   # 4D
+            {"onset": 2.0, "offset": 3.0, "octave": 3, "pitch_class": 0},   # 4C
+            {"onset": 3.0, "offset": 4.0, "octave": 3, "pitch_class": 4},   # 4E
+    ],
+    "num_beats": 3
     }
     lines = harmony_to_kern(sample_metadata)
     print("\n".join(lines))

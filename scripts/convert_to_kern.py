@@ -1,6 +1,4 @@
 import os
-from typing import List
-from utils import melody_to_kern, harmony_to_kern
 
 def write_kern_file(melody_spine, harmony_spine, output_path):
     """
@@ -26,7 +24,7 @@ if __name__ == "__main__":
     songs = get_train_songs(data)
     # test 1 song
     song = songs[0]
-    print(song['melody'])
-    # melody_spine = generate_kern(song)
-    # harmony_spine = harmony_to_kern(song)
-    # write_kern_file(melody_spine, harmony_spine, f"output/{song['title']}.krn")
+    # print(song['melody'])
+    melody_spine = generate_kern(song)
+    harmony_spine = harmony_to_kern(song)
+    write_kern_file(melody_spine, harmony_spine, f"output/{song['title']}.krn")

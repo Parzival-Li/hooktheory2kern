@@ -135,12 +135,17 @@ def harmony_to_kern(score_metadata):
     Returns:
         str: .krn content as plain text
     """
+    ## if harmony is None, return None as harmony spine
+    if score_metadata.get('harmony') is None:
+        return None
+    
     kern_lines = ["**mxhm"]
     kern_lines.append("*clefG2")
     kern_lines.extend(['*'] * 3)
     # initialization
-    harmony = score_metadata.get('harmony', [{}])
-    melody = score_metadata.get('melody', [{}])
+    harmony = score_metadata.get('harmony')
+    melody = score_metadata.get('melody')
+    
     total_beats = len(melody)
     total_beats_int = int(total_beats)
     beat_line = ['.'] * total_beats_int

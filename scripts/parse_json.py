@@ -12,8 +12,8 @@ def extract_key_fields(song_data):
     return {
     "title": song_data["hooktheory"]["song"],
     "artist": song_data["hooktheory"]["artist"],
-    "meter": song_data["annotations"]["meters"],
-    "key": song_data["annotations"]["keys"],
+    "meters": song_data["annotations"]["meters"],
+    "keys": song_data["annotations"]["keys"],
     "melody": song_data["annotations"]["melody"],
     "harmony": song_data["annotations"]["harmony"],
     "num_beats": song_data["annotations"].get("num_beats", None)

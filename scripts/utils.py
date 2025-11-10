@@ -10,19 +10,23 @@ def pitch_class_to_kern(pitch_class, octave):
     """
     note_names = ['c', 'c#', 'd', 'd#', 'e', 'f', 'f#', 'g', 'g#', 'a', 'a#', 'b']
     base = note_names[pitch_class % 12]
+    letter = base[0]
+    accidental = base[1:]
     octave_shift = octave
     if octave_shift > 0:
-        base = base.lower() * (1 + octave_shift)
+        base = (letter.lower() * (1 + octave_shift)) + accidental
     elif octave_shift < 0:
-        base = base.upper() * (abs(octave_shift))
+        base = (letter.upper() * (abs(octave_shift))) + accidental
     else:
-        base = base.lower()
+        base = letter.lower() + accidental
     return base
 
-def duration_to_kern(duration):
+def duration_to_kern(duration, beat_unit=4):
     """
     Convert duration(offset-onset) in beats to kern rhythmic value
     """
+    duration_in_quarter = duration * (4 / beat_unit)
+    
     duration_map = {
         4.0: "1",     # whole note
         3.0: "2.",    # dotted half note
@@ -36,7 +40,7 @@ def duration_to_kern(duration):
         0.125: "32",  # 32nd note
     }
     if duration in duration_map:
-        return duration_map[duration]
+        return duration_map[duration_in_quarter]
     
     for fix_val, kern_val in duration_map.items():
         if abs(duration-fix_val) < 0.01:
@@ -44,7 +48,7 @@ def duration_to_kern(duration):
     print(f"[Warning] Unknown duration: {duration}, fallback to quarter note")
     return "4" # quarter note as fallback
 
-def melody_to_kern(melody):
+def melody_to_kern(melody, meter):
     """
     Covert [melody] in [annotations] into kern string list.
     Args:
@@ -62,7 +66,8 @@ def melody_to_kern(melody):
         # calculation
         duration = offset - onset
         kern_pitch = pitch_class_to_kern(pitch_class, octave)
-        kern_duration = duration_to_kern(duration)
+        beat_unit = meter['beat_unit']
+        kern_duration = duration_to_kern(duration, beat_unit)
         kern_notes.append(f"{kern_duration}{kern_pitch}")
         
     return kern_notes
@@ -119,7 +124,7 @@ def generate_kern(score_metadata):
     
     # ---- Body ----
     melody = score_metadata.get('melody', [{}])
-    melody_lines = melody_to_kern(melody)
+    melody_lines = melody_to_kern(melody, meter)
     kern_lines.extend(melody_lines)
     
     # ---- Foot ----
@@ -206,7 +211,7 @@ if __name__ == "__main__":
     # test duration_to_kern func
     test_durations = [1.0, 0.5, 0.499999, 0.3]
     for dur in test_durations:
-        print(f"{dur} beat → {duration_to_kern(dur)}")
+        print(f"{dur} beat → {duration_to_kern(dur, 8)}")
         
     # test melody_to_kern func
     melody = [
@@ -215,7 +220,7 @@ if __name__ == "__main__":
         {"onset": 3.0, "offset": 4.0, "pitch_class": 4, "octave": 5},   # 4ee
         {"onset": 4.0, "offset": 8.0, "pitch_class": 7, "octave": 2},   # 1GG
     ]
-    result = melody_to_kern(melody)
+    result = melody_to_kern(melody, meter = {'beat': 0, 'beats_per_bar': 3, 'beat_unit': 4})
     print("Kern melody:", result)
     
     # test generate_kern func

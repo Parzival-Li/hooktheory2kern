@@ -1,3 +1,10 @@
+from music21 import chord as m21_chord, pitch as m21_pitch, harmony as m21_harmony
+
+major_key_signatures = {
+    0: "", 7: "f#", 2: "f#c#", 9: "f#c#g#", 4: "f#c#g#d#", 11: "f#c#g#d#a#",
+    6: "f#c#g#d#a#e#", 1: "f#c#g#d#a#e#b#",
+    5: "b-", 10: "b-e-", 3: "b-e-a-", 8: "b-e-a-d-"}
+
 def pitch_class_to_kern(pitch_class, octave):
     """
     Convert pitch class and octave to kern notation.
@@ -87,18 +94,20 @@ def generate_kern(score_metadata):
     ## key signatures
     key = score_metadata.get('keys', [{}])[0]
     tonic_pc = key.get('tonic_pitch_class', 0) # C as fallback
-    intervals = key.get('scale_degree_intervals', [])
-    
-    major_key_signatures = {
-    0: "", 7: "f#", 2: "f#c#", 9: "f#c#g#", 4: "f#c#g#d#", 11: "f#c#g#d#a#",
-    6: "f#c#g#d#a#e#", 1: "f#c#g#d#a#e#b#",
-    5: "b-", 10: "b-e-", 3: "b-e-a-", 8: "b-e-a-d-"}
-    note_names = ['c', 'c#', 'd', 'd#', 'e', 'f', 'f#', 'g', 'g#', 'a', 'a#', 'b']
-    
     signature = major_key_signatures.get(tonic_pc, "")
     kern_lines.append(f"*k[{signature}]")
     
     ## tonic
+    pc_to_name_major = {
+    0: "C", 1: "Db", 2: "D", 3: "Eb", 4: "E", 5: "F",
+    6: "Gb", 7: "G", 8: "Ab", 9: "A", 10: "Bb", 11: "B"
+    }
+    pc_to_name_minor = {
+        0: "c", 1: "c#", 2: "d", 3: "eb", 4: "e", 5: "f",
+        6: "f#", 7: "g", 8: "ab", 9: "a", 10: "bb", 11: "b"
+    }
+    
+    intervals = key.get('scale_degree_intervals', [])
     if intervals[:6] == [2, 2, 1, 2, 2, 2]:
         mode = 'major'
     elif intervals[:6] == [2, 1, 2, 2, 1, 2]:
@@ -106,12 +115,12 @@ def generate_kern(score_metadata):
     else:
         mode = 'unknown'
 
-    tonic_name = note_names[tonic_pc]
-
     if mode == 'major':
-        kern_lines.append(f"*{tonic_name.upper()}:")
+        tonic_name = pc_to_name_major.get(tonic_pc, f"{tonic_pc}")
+        kern_lines.append(f"*{tonic_name}:")
     elif mode == 'minor':
-        kern_lines.append(f"*{tonic_name.lower()}:")
+        tonic_name = pc_to_name_minor.get(tonic_pc, f"{tonic_pc}")
+        kern_lines.append(f"*{tonic_name}:")
     else:
         kern_lines.append(f"*{tonic_name}?")
         
@@ -148,6 +157,10 @@ def harmony_to_kern(score_metadata):
     kern_lines.append("*clefG2")
     kern_lines.extend(['*'] * 3)
     # initialization
+    key = score_metadata.get('keys', [{}])[0]
+    tonic_pc = key.get('tonic_pitch_class', 0)
+    signature = major_key_signatures.get(tonic_pc, "")
+    
     harmony = score_metadata.get('harmony')
     melody = score_metadata.get('melody')
     
@@ -162,19 +175,38 @@ def harmony_to_kern(score_metadata):
         onset = chord['onset']
         offset = chord['offset']
         har_duration = offset - onset
-        ## chord label
-        root = chord['root_pitch_class']
-        intervals = chord['root_position_intervals']
-        ### major or minor
-        if intervals == [4, 3]:
-            suffix = ''
-        elif intervals == [3, 4]:
-            suffix = 'm'
-        else:
-            suffix = '?'
-        ### concat to chord labels
-        note_names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
-        chord_label = note_names[root] + suffix
+        # identify chord
+        try:
+            root = chord['root_pitch_class']
+            intervals = chord['root_position_intervals']
+            root_pitch = m21_pitch.Pitch()
+            root_pitch.midi = 60 + root
+            pitch_list = [root_pitch]
+            semitone_sum = 0
+            for iv in intervals:
+                semitone_sum += iv
+                p = m21_pitch.Pitch()
+                p.midi = root_pitch.midi + semitone_sum
+                pitch_list.append(p)
+                
+            ch = m21_chord.Chord(pitch_list)
+            cs = m21_harmony.chordSymbolFromChord(ch)
+            chord_label = cs.figure
+            # simplify chord name(especially for some sus4 chords)
+            replacements = {
+                'add': '',
+                'sus4': 'sus',
+                'sus2': 'sus',
+                '#11': '',
+                'b13': '',
+            }
+            for old, new in replacements.items():
+                chord_label = chord_label.replace(old, new)
+            
+        except Exception as e:
+            print(f"[Warning] Chord parsing failed: {e}")
+            chord_label = "?"
+        
         ## align melody spine
         anchor_idx = melody_idx
         total_mel_dur = 0.0

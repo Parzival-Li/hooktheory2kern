@@ -1,10 +1,167 @@
-from music21 import chord as m21_chord, pitch as m21_pitch, harmony as m21_harmony
-
+# dicts
 major_key_signatures = {
     0: "", 7: "f#", 2: "f#c#", 9: "f#c#g#", 4: "f#c#g#d#", 11: "f#c#g#d#a#",
     6: "f#c#g#d#a#e#", 1: "f#c#g#d#a#e#b#",
     5: "b-", 10: "b-e-", 3: "b-e-a-", 8: "b-e-a-d-"}
 
+pc_to_name_major = {
+    0: "C", 1: "Db", 2: "D", 3: "Eb", 4: "E", 5: "F",
+    6: "Gb", 7: "G", 8: "Ab", 9: "A", 10: "Bb", 11: "B"
+    }
+
+pc_to_name_minor = {
+        0: "c", 1: "c#", 2: "d", 3: "eb", 4: "e", 5: "f",
+        6: "f#", 7: "g", 8: "ab", 9: "a", 10: "bb", 11: "b"
+    }
+
+# chord identification funcs
+def tonic_identification(key):
+    intervals = key.get('scale_degree_intervals', [])
+    tonic_pc = key.get('tonic_pitch_class', 0)
+    if intervals[:6] == [2, 2, 1, 2, 2, 2]:
+        mode = 'major'
+    elif intervals[:6] == [2, 1, 2, 2, 1, 2]:
+        mode = 'minor'
+    else:
+        mode = 'unknown'
+
+    if mode == 'major':
+        tonic_name = pc_to_name_major.get(tonic_pc, f"{tonic_pc}")
+        return tonic_name
+    elif mode == 'minor':
+        tonic_name = pc_to_name_minor.get(tonic_pc, f"{tonic_pc}")
+        return tonic_name
+    else:
+        tonic_name = pc_to_name_minor.get(tonic_pc, f"{tonic_pc}")
+        return tonic_name+"?"
+
+def prefer_flats_from_tonic(tonic):
+    '''
+    Identify if a tonic is flat
+    '''
+    if tonic is None:
+        return False
+    t = tonic.replace('♭', 'b').replace('♯', '#').strip()
+    if 'b' in t:
+        return True
+    sharp_keys = {
+        'G','D','A','E','B','F#','C#',
+        'Em','Bm','F#m','C#m','G#m','D#m','A#m'
+    }
+    flat_keys = {
+        'F','Bb','Eb','Ab','Db','Gb','Cb',
+        'Dm','Gm','Cm','Fm','Bbm','Ebm','Abm','Dbm','Gbm','Cbm'
+    }
+    if t in flat_keys:
+        return True
+    if t in sharp_keys:
+        return False
+    return False
+
+def root_to_name(pc, prefer_flats):
+    '''
+    Define root pitch
+    '''
+    pc = int(pc) % 12
+    names_sharp = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B']
+    names_flat  = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B']
+    return names_flat[pc] if prefer_flats else names_sharp[pc]
+
+def intervals_to_pcset(intervals):
+    '''
+    Intervals to pitch-class set
+    '''
+    pcs = []
+    s = 0
+    for d in intervals:
+        s += int(d)
+        pcs.append(s % 12)
+    # drop 0
+    return frozenset(p for p in pcs if p != 0)
+
+def quality_from_intervals(intervals):
+    '''
+    Detect standard triads and seventh chords
+    '''
+    iv = list(map(int, intervals))
+    if iv == [4, 3]:      return ''      
+    if iv == [3, 4]:      return 'm'       
+    if iv == [3, 3]:      return 'dim'   
+    if iv == [4, 4]:      return 'aug'     
+    if iv == [4, 3, 3]:   return '7'     
+    if iv == [4, 3, 4]:   return 'maj7'   
+    if iv == [3, 4, 3]:   return 'm7'    
+    if iv == [3, 3, 4]:   return 'm7b5'    
+    if iv == [3, 3, 3]:   return 'dim7'
+    return None 
+
+def quality_from_pcset(pcset: frozenset):
+    """
+    Identify chord from a pitch-class set relative to the root
+    """
+    P = pcset
+
+    # Power chord
+    if P == {7}:
+        return '5'
+
+    # Suspended triads
+    if P == {2, 7}:           return 'sus2'
+    if P == {5, 7}:           return 'sus4'
+
+    # Suspended sevenths
+    if P == {5, 7, 10}:       return '7sus4'
+    if P == {2, 7, 10}:       return '7sus2'
+
+    # Add chords
+    if P == {2, 4, 7}:        return 'add9' 
+    if P == {2, 3, 7}:        return 'm(add9)'
+    if P == {4, 5, 7}:        return 'add11'
+    if P == {3, 5, 7}:        return 'm(add11)'
+    if P == {4, 7, 9}:        return '6' 
+    if P == {3, 7, 9}:        return 'm6'
+    if P == {2, 4, 7, 9}:     return '6/9'
+    if P == {2, 3, 7, 9}:     return 'm6/9'
+
+    # Standard triads
+    if P == {4, 7}:           return ''
+    if P == {3, 7}:           return 'm'
+    if P == {3, 6}:           return 'dim'
+    if P == {4, 8}:           return 'aug'
+
+    # Seventh chords
+    if P == {4, 7, 10}:       return '7'
+    if P == {4, 7, 11}:       return 'maj7'
+    if P == {3, 7, 10}:       return 'm7'
+    if P == {3, 6, 10}:       return 'm7b5'
+    if P == {3, 6, 9}:        return 'dim7'
+    if P == {3, 7, 11}:       return 'm(maj7)'
+    
+    # Altered dominant types
+    if P == {4, 8, 10}:
+        return '7(#5)'
+    # #5 b9
+    if P == {4, 8, 10, 1}:
+        return '7(#5,b9)'
+    # b9
+    if P == {4, 7, 10, 1}:
+        return '7(b9)'
+
+    # fallback
+    return ''
+
+def label_chord_from_harmony(harmony, tonic):
+    prefer_flats = prefer_flats_from_tonic(tonic)
+    root_pc = harmony.get('root_pitch_class', 0)
+    root_name = root_to_name(root_pc, prefer_flats)
+
+    intervals = harmony.get('root_position_intervals', [])
+    q = quality_from_intervals(intervals)
+    if q is None:
+        q = quality_from_pcset(intervals_to_pcset(intervals))
+    return f"{root_name}{q}"
+
+# note name identification funcs
 def pitch_class_to_kern(pitch_class, octave):
     """
     Convert pitch class and octave to kern notation.
@@ -55,6 +212,7 @@ def duration_to_kern(duration, beat_unit=4):
     print(f"[Warning] Unknown duration: {duration}, fallback to quarter note")
     return "4" # quarter note as fallback
 
+# melody spine generation
 def melody_to_kern(melody, meter):
     """
     Covert [melody] in [annotations] into kern string list.
@@ -98,38 +256,14 @@ def generate_kern(score_metadata):
     kern_lines.append(f"*k[{signature}]")
     
     ## tonic
-    pc_to_name_major = {
-    0: "C", 1: "Db", 2: "D", 3: "Eb", 4: "E", 5: "F",
-    6: "Gb", 7: "G", 8: "Ab", 9: "A", 10: "Bb", 11: "B"
-    }
-    pc_to_name_minor = {
-        0: "c", 1: "c#", 2: "d", 3: "eb", 4: "e", 5: "f",
-        6: "f#", 7: "g", 8: "ab", 9: "a", 10: "bb", 11: "b"
-    }
-    
-    intervals = key.get('scale_degree_intervals', [])
-    if intervals[:6] == [2, 2, 1, 2, 2, 2]:
-        mode = 'major'
-    elif intervals[:6] == [2, 1, 2, 2, 1, 2]:
-        mode = 'minor'
-    else:
-        mode = 'unknown'
-
-    if mode == 'major':
-        tonic_name = pc_to_name_major.get(tonic_pc, f"{tonic_pc}")
-        kern_lines.append(f"*{tonic_name}:")
-    elif mode == 'minor':
-        tonic_name = pc_to_name_minor.get(tonic_pc, f"{tonic_pc}")
-        kern_lines.append(f"*{tonic_name}:")
-    else:
-        kern_lines.append(f"*{tonic_name}?")
+    tonic_name = tonic_identification(key)
+    kern_lines.append(f"*{tonic_name}:")
         
     ## beats
     meter = score_metadata.get('meters', [{}])[0]
     beats_per_bar = meter.get('beats_per_bar', 4)
     beat_unit = meter.get('beat_unit', 4)
     kern_lines.append(f"*M{beats_per_bar}/{beat_unit}")
-    
     
     # ---- Body ----
     melody = score_metadata.get('melody', [{}])
@@ -141,6 +275,7 @@ def generate_kern(score_metadata):
     
     return kern_lines
 
+# harmony spine generation
 def harmony_to_kern(score_metadata):
     """
     Generate harmony string for a single song.
@@ -158,11 +293,9 @@ def harmony_to_kern(score_metadata):
     kern_lines.extend(['*'] * 3)
     # initialization
     key = score_metadata.get('keys', [{}])[0]
-    tonic_pc = key.get('tonic_pitch_class', 0)
-    signature = major_key_signatures.get(tonic_pc, "")
-    
     harmony = score_metadata.get('harmony')
     melody = score_metadata.get('melody')
+    tonic_name = tonic_identification(key)
     
     total_beats = len(melody)
     total_beats_int = int(total_beats)
@@ -176,36 +309,7 @@ def harmony_to_kern(score_metadata):
         offset = chord['offset']
         har_duration = offset - onset
         # identify chord
-        try:
-            root = chord['root_pitch_class']
-            intervals = chord['root_position_intervals']
-            root_pitch = m21_pitch.Pitch()
-            root_pitch.midi = 60 + root
-            pitch_list = [root_pitch]
-            semitone_sum = 0
-            for iv in intervals:
-                semitone_sum += iv
-                p = m21_pitch.Pitch()
-                p.midi = root_pitch.midi + semitone_sum
-                pitch_list.append(p)
-                
-            ch = m21_chord.Chord(pitch_list)
-            cs = m21_harmony.chordSymbolFromChord(ch)
-            chord_label = cs.figure
-            # simplify chord name(especially for some sus4 chords)
-            replacements = {
-                'add': '',
-                'sus4': 'sus',
-                'sus2': 'sus',
-                '#11': '',
-                'b13': '',
-            }
-            for old, new in replacements.items():
-                chord_label = chord_label.replace(old, new)
-            
-        except Exception as e:
-            print(f"[Warning] Chord parsing failed: {e}")
-            chord_label = "?"
+        chord_label = label_chord_from_harmony(chord, tonic_name)
         
         ## align melody spine
         anchor_idx = melody_idx

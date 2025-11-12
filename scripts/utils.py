@@ -185,6 +185,29 @@ def pitch_class_to_kern(pitch_class, octave):
         base = letter.lower() + accidental
     return base
 
+# duration split
+def split_duration(duration, duration_map_keys):
+    result = []
+    remaining = duration
+    # detect triplet
+    triplet_bases = [1.0, 2.0, 4.0]
+    for base in triplet_bases:
+        triplet_val = base * 2 / 3  # e.g. 0.6666, 1.333, 2.666
+        if abs(duration - triplet_val) < 0.02:
+            return [base / 3] * 3
+    
+    while remaining > 0.01:
+        for val in sorted(duration_map_keys, reverse=True):
+            if val <= remaining + 1e-6:
+                result.append(val)
+                remaining -= val
+                break
+        else:
+            # avoid infinite loop
+            print(f"[Warning] Cannot match remaining duration: {remaining}")
+            break
+    return result
+
 def duration_to_kern(duration, beat_unit=4):
     """
     Convert duration(offset-onset) in beats to kern rhythmic value
@@ -198,22 +221,86 @@ def duration_to_kern(duration, beat_unit=4):
         1.5: "4.",    # dotted quarter note
         1.0: "4",     # quarter note
         0.75: "8.",   # dotted eighth note
+        0.6666667: "4", # quarter triplet
         0.5: "8",     # eighth note
         0.375: "16.", # dotted sixteenth note
+        0.3333333: "8", # eighth triplet
         0.25: "16",   # sixteenth note
         0.125: "32",  # 32nd note
     }
-    if duration in duration_map:
-        return duration_map[duration_in_quarter]
+    keys = duration_map.keys()
+    split = split_duration(duration_in_quarter, keys)
+    # detect triplet
+    is_triplet = False
+    if len(split) == 3 and all(abs(split[0] - s) < 0.01 for s in split):
+        total = sum(split)
+        if abs(total - 2.0) < 0.1 or abs(total - 1.0) < 0.1 or abs(total - 0.5) < 0.05:
+            is_triplet = True
     
-    for fix_val, kern_val in duration_map.items():
-        if abs(duration-fix_val) < 0.01:
-            return kern_val
-    print(f"[Warning] Unknown duration: {duration}, fallback to quarter note")
-    return "4" # quarter note as fallback
+    kern_parts = []
+    for i, dur in enumerate(split):
+        # kern_val = duration_map.get(dur)
+        def lookup_kern_value(duration, duration_map, tolerance=0.0001):
+            for dur_val, kern in duration_map.items():
+                if abs(duration - dur_val) < tolerance:
+                    return kern
+        kern_val = lookup_kern_value(dur, duration_map)
+        
+        if not kern_val:
+            print(f"[Warning] Unexpected sub-duration: {dur}")
+            kern_val = "4"  # fallback
+        if is_triplet:
+            if i == 0:
+                kern_val += "L"
+            elif i == 2:
+                kern_val += "J"
+        else:
+            # add tie if more than one element
+            if i < len(split) - 1:
+                kern_val += "["  
+        kern_parts.append(kern_val)
+    return kern_parts
+
+def r_to_duration(r):
+    """
+    Convert kern rest symbol (e.g. "8r", "8.Lr", "4Jr") to duration in quarter notes.
+    Supports triplet markers: L (start), J (end).
+    """
+    r = r.replace("r", "").replace("[", "")
+    is_triplet = "L" in r or "J" in r
+    r = r.replace("L", "").replace("J", "")
+
+    duration_map = {
+        "1": 4.0, "2.": 3.0, "2": 2.0, "4.": 1.5, "4": 1.0,
+        "8.": 0.75, "8": 0.5, "16.": 0.375, "16": 0.25, "32": 0.125
+    }
+
+    dur = duration_map.get(r, 1.0)
+    if is_triplet:
+        dur *= 2 / 3
+    return dur
+
+def d_to_duration(kern_val):
+    """
+    Convert kern note symbol (e.g. "8L", "8J", "4[") to duration in quarter notes.
+    Removes tie symbols and interprets triplet markers.
+    """
+    val = kern_val.replace("[", "").replace("_", "")
+    is_triplet = "L" in val or "J" in val
+    val = val.replace("L", "").replace("J", "")
+
+    duration_map = {
+        "1": 4.0, "2.": 3.0, "2": 2.0, "4.": 1.5, "4": 1.0,
+        "8.": 0.75, "8": 0.5, "16.": 0.375, "16": 0.25, "32": 0.125
+    }
+
+    dur = duration_map.get(val, 1.0)
+    if is_triplet:
+        dur *= 2 / 3
+    return dur
 
 # melody spine generation
-def melody_to_kern(melody, meter):
+def melody_to_kern(melody, meter, num_beats):
     """
     Covert [melody] in [annotations] into kern string list.
     Args:
@@ -223,6 +310,22 @@ def melody_to_kern(melody, meter):
         List of string：e.g. ["4B,,", "c#8", "D2."]
     """
     kern_notes = []
+    onsets = []
+    
+    beat_unit = meter['beat_unit']
+    def add_rest(start, end):
+        rest_duration = end - start
+        rest_kerns = duration_to_kern(rest_duration, beat_unit)
+        if not isinstance(rest_kerns, list):
+            rest_kerns = [rest_kerns]
+        for r in rest_kerns:
+            r = r.replace("[", "")
+            kern_notes.append(f"{r}r")
+            onsets.append(start)
+            start += r_to_duration(r)
+    
+    melody = sorted(melody, key=lambda x: x['onset'])
+    prev_offset = 0.0
     for note in melody:
         onset = note['onset']
         offset = note['offset']
@@ -230,12 +333,31 @@ def melody_to_kern(melody, meter):
         pitch_class = note['pitch_class']
         # calculation
         duration = offset - onset
-        kern_pitch = pitch_class_to_kern(pitch_class, octave)
-        beat_unit = meter['beat_unit']
-        kern_duration = duration_to_kern(duration, beat_unit)
-        kern_notes.append(f"{kern_duration}{kern_pitch}")
         
-    return kern_notes
+        # If there's a rest before this note
+        if onset > prev_offset:
+            add_rest(prev_offset, onset)
+        
+        kern_duration = duration_to_kern(duration, beat_unit)
+        if not isinstance(kern_duration, list):
+            kern_duration = [kern_duration]
+        
+        kern_pitch = pitch_class_to_kern(pitch_class, octave)
+        for i, dur in enumerate(kern_duration):
+            if i == 0:
+                kern_notes.append(f"{dur}{kern_pitch}")
+            else:
+                kern_notes.append(f"{dur}{kern_pitch}")
+            onsets.append(onset)  # 🔴 对应 melody_onsets
+            onset += d_to_duration(dur)
+        
+        prev_offset = offset
+        
+    # Final rest if song ends early
+    if prev_offset < num_beats:
+        add_rest(prev_offset, num_beats)
+            
+    return kern_notes, onsets
     
 def generate_kern(score_metadata):
     """
@@ -267,16 +389,17 @@ def generate_kern(score_metadata):
     
     # ---- Body ----
     melody = score_metadata.get('melody', [{}])
-    melody_lines = melody_to_kern(melody, meter)
+    num_beats = score_metadata.get('num_beats')
+    melody_lines, melody_onsets = melody_to_kern(melody, meter, num_beats)
     kern_lines.extend(melody_lines)
     
     # ---- Foot ----
     kern_lines.append("*-")
     
-    return kern_lines
+    return kern_lines, melody_onsets
 
 # harmony spine generation
-def harmony_to_kern(score_metadata):
+def harmony_to_kern(score_metadata, melody_onsets):
     """
     Generate harmony string for a single song.
     Args:
@@ -288,48 +411,59 @@ def harmony_to_kern(score_metadata):
     if score_metadata.get('harmony') is None:
         return None
     
-    kern_lines = ["**mxhm"]
-    kern_lines.append("*clefG2")
-    kern_lines.extend(['*'] * 3)
+    kern_lines = []
+
     # initialization
     key = score_metadata.get('keys', [{}])[0]
     harmony = score_metadata.get('harmony')
     melody = score_metadata.get('melody')
     tonic_name = tonic_identification(key)
     
-    total_beats = len(melody)
+    total_beats = len(melody_onsets)
     total_beats_int = int(total_beats)
     beat_line = ['.'] * total_beats_int
-    melody_idx = 0
-    harmony_idx = 0
-    # iterate  
-    while harmony_idx < len(harmony) and melody_idx < len(melody):
-        chord = harmony[harmony_idx]
+    
+    # melody_idx = 0
+    # harmony_idx = 0
+    # # iterate  
+    # while harmony_idx < len(harmony) and melody_idx < len(melody):
+    #     chord = harmony[harmony_idx]
+    #     onset = chord['onset']
+    #     offset = chord['offset']
+    #     har_duration = offset - onset
+    #     # identify chord
+    #     chord_label = label_chord_from_harmony(chord, tonic_name)
+        
+    #     ## align melody spine
+    #     anchor_idx = melody_idx
+    #     total_mel_dur = 0.0
+
+    #     while melody_idx < len(melody) and total_mel_dur < har_duration:
+    #         mel = melody[melody_idx]
+    #         mel_dur = mel["offset"] - mel["onset"]
+    #         total_mel_dur += mel_dur
+    #         melody_idx += 1
+
+    #     beat_line[anchor_idx] = chord_label
+    #     harmony_idx += 1
+    for chord in harmony:
         onset = chord['onset']
-        offset = chord['offset']
-        har_duration = offset - onset
-        # identify chord
         chord_label = label_chord_from_harmony(chord, tonic_name)
         
-        ## align melody spine
-        anchor_idx = melody_idx
-        total_mel_dur = 0.0
-
-        while melody_idx < len(melody) and total_mel_dur < har_duration:
-            mel = melody[melody_idx]
-            mel_dur = mel["offset"] - mel["onset"]
-            total_mel_dur += mel_dur
-            melody_idx += 1
-
-        beat_line[anchor_idx] = chord_label
-        harmony_idx += 1
+        # find the closet index in melody_onsets
+        anchor_idx = next((i for i, t in enumerate(melody_onsets) if t >= onset), None)
+        if anchor_idx is not None and anchor_idx < len(beat_line):
+            beat_line[anchor_idx] = chord_label
 
     # to kern spine
     for label in beat_line:
         kern_lines.append(label)
-        
+  
+    header = ["**mxhm", "*clefG2", "*", "*", "*"]
+    kern_lines = header + kern_lines
     kern_lines.append("*-")
     return kern_lines
+
 
 if __name__ == "__main__":
     # test pitch_class_to_kern func

@@ -23,8 +23,8 @@ def main():
             print(f"Skipped: melody is None.")
             continue
         
-        melody_spine = generate_kern(song)
-        harmony_spine = harmony_to_kern(song)
+        melody_spine, melody_onsets = generate_kern(song)
+        harmony_spine = harmony_to_kern(song, melody_onsets)
         write_kern_file(melody_spine, harmony_spine, f"outputs/{song['id']}.krn")
 
     print("All songs processed.")

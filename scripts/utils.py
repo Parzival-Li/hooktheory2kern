@@ -1,3 +1,4 @@
+import re
 # dicts
 major_key_signatures = {
     0: "", 7: "f#", 2: "f#c#", 9: "f#c#g#", 4: "f#c#g#d#", 11: "f#c#g#d#a#",
@@ -258,6 +259,8 @@ def duration_to_kern(duration, beat_unit=4):
             # add tie if more than one element
             if i < len(split) - 1:
                 kern_val += "["  
+            elif (i > 0) and (i == len(split) - 1):
+                kern_val += "]"
         kern_parts.append(kern_val)
     return kern_parts
 
@@ -463,6 +466,56 @@ def harmony_to_kern(score_metadata, melody_onsets):
     kern_lines = header + kern_lines
     kern_lines.append("*-")
     return kern_lines
+
+def insert_barlines(melody_spine, harmony_spine, meter):
+    """
+    Insert barlines into both melody and harmony spines based on meter.
+    """
+    beats_per_bar = meter.get('beats_per_bar', 4)
+    beat_unit = meter.get('beat_unit', 4)
+
+    melody_body = melody_spine[:-1] if melody_spine[-1] == "*-" else melody_spine
+    harmony_body = harmony_spine[:-1] if harmony_spine and harmony_spine[-1] == "*-" else harmony_spine
+
+
+    output_melody = []
+    output_harmony = [] if harmony_spine else None
+    beat_counter = 0.0
+    bar_index = 1
+
+    for idx, m_line in enumerate(melody_body):
+        output_melody.append(m_line)
+        if harmony_body:
+            h_line = harmony_body[idx]
+            output_harmony.append(h_line)
+
+        if m_line.startswith("*") or m_line.startswith("="):
+            continue
+
+        # Extract duration value from the melody line
+        match = re.match(r"^(\d+\.?)(?:_|\[|r|[a-gA-Gr#-]+)?", m_line)
+        if match:
+            dur_str = match.group(1)
+            dur_val_map = {
+                "1": 4, "2.": 3, "2": 2, "4.": 1.5, "4": 1,
+                "8.": 0.75, "8": 0.5, "16.": 0.375, "16": 0.25, "32": 0.125
+            }
+            dur = dur_val_map.get(dur_str, 0)
+            beat_counter += dur * (beat_unit / 4)
+
+            if beat_counter >= beats_per_bar - 1e-6:
+                output_melody.append(f"={bar_index}")
+                if output_harmony is not None:
+                    output_harmony.append(f"={bar_index}")
+                bar_index += 1
+                beat_counter = 0.0
+
+    # Add back footers
+    output_melody.append("*-")
+    if output_harmony is not None:
+        output_harmony.append("*-")
+
+    return output_melody, output_harmony
 
 
 if __name__ == "__main__":

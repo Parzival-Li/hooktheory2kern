@@ -1,6 +1,6 @@
 import os
 from parse_json import load_json, get_train_songs
-from utils import generate_kern, harmony_to_kern
+from utils import generate_kern, harmony_to_kern, insert_barlines
 from convert_to_kern import write_kern_file
 
 def ensure_output_folder(path="outputs"):
@@ -25,6 +25,7 @@ def main():
         
         melody_spine, melody_onsets = generate_kern(song)
         harmony_spine = harmony_to_kern(song, melody_onsets)
+        melody_spine, harmony_spine = insert_barlines(melody_spine, harmony_spine, song['meters'][0])
         write_kern_file(melody_spine, harmony_spine, f"outputs/{song['id']}.krn")
 
     print("All songs processed.")

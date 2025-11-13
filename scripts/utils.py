@@ -5,6 +5,26 @@ major_key_signatures = {
     6: "f#c#g#d#a#e#", 1: "f#c#g#d#a#e#b#",
     5: "b-", 10: "b-e-", 3: "b-e-a-", 8: "b-e-a-d-"}
 
+modal_key_signatures = {
+    "dorian": {
+        0: "", 2: "f#", 4: "f#c#", 5: "f#c#g#", 7: "f#c#g#d#", 9: "f#c#g#d#a#", 11: "f#c#g#d#a#e#",
+        1: "f#c#g#d#a#e#b#", 10: "b-", 8: "b-e-", 6: "b-e-a-", 3: "b-e-a-d-", 
+    },
+    "phrygian": {
+        0: "b-", 2: "b-e-", 4: "b-e-a-", 5: "b-e-a-d-", 7: "b-e-a-d-g-", 9: "b-e-a-d-g-c-",
+    },
+    "lydian": {
+        0: "f#", 2: "f#c#", 4: "f#c#g#", 5: "f#c#g#d#", 7: "f#c#g#d#a#", 9: "f#c#g#d#a#e#", 
+    },
+    "mixolydian": {
+        0: "", 2: "f#", 4: "f#c#", 5: "f#c#g#", 7: "f#c#g#d#", 9: "f#c#g#d#a#", 11: "f#c#g#d#a#e#",
+        10: "b-", 8: "b-e-", 6: "b-e-a-", 3: "b-e-a-d-", 
+    },
+    "locrian": {
+        0: "b-e-a-d-", 2: "b-e-a-", 4: "b-e-", 5: "b-", 7: "", 9: "f#", 11: "f#c#", 1: "f#c#g#",
+    }
+}
+
 pc_to_name_major = {
     0: "C", 1: "Db", 2: "D", 3: "Eb", 4: "E", 5: "F",
     6: "Gb", 7: "G", 8: "Ab", 9: "A", 10: "Bb", 11: "B"
@@ -23,6 +43,16 @@ def tonic_identification(key):
         mode = 'major'
     elif intervals[:6] == [2, 1, 2, 2, 1, 2]:
         mode = 'minor'
+    elif intervals[:7] == [2, 1, 2, 2, 2, 1]:
+        mode = 'dorian'
+    elif intervals[:7] == [1, 2, 2, 2, 1, 2]:
+        mode = 'phrygian'
+    elif intervals[:7] == [2, 2, 2, 1, 2, 2]:
+        mode = 'lydian'
+    elif intervals[:7] == [2, 2, 1, 2, 2, 1]:
+        mode = 'mixolydian'
+    elif intervals[:7] == [1, 2, 2, 1, 2, 2]:
+        mode = 'locrian'
     else:
         mode = 'unknown'
 
@@ -32,6 +62,8 @@ def tonic_identification(key):
     elif mode == 'minor':
         tonic_name = pc_to_name_minor.get(tonic_pc, f"{tonic_pc}")
         return tonic_name
+    elif mode in modal_key_signatures:
+        return pc_to_name_major.get(tonic_pc, f"{tonic_pc}") + f"@{mode}"
     else:
         tonic_name = pc_to_name_minor.get(tonic_pc, f"{tonic_pc}")
         return tonic_name+"?"
@@ -163,7 +195,7 @@ def label_chord_from_harmony(harmony, tonic):
     return f"{root_name}{q}"
 
 # note name identification funcs
-def pitch_class_to_kern(pitch_class, octave):
+def pitch_class_to_kern(pitch_class, octave, prefer_flats=False):
     """
     Convert pitch class and octave to kern notation.
     Assumes:
@@ -173,8 +205,10 @@ def pitch_class_to_kern(pitch_class, octave):
     Returns:
         kern-formatted note string (e.g. 'c', 'B', 'cc', 'AA')
     """
-    note_names = ['c', 'c#', 'd', 'd#', 'e', 'f', 'f#', 'g', 'g#', 'a', 'a#', 'b']
-    base = note_names[pitch_class % 12]
+    sharp_names = ['c', 'c#', 'd', 'd#', 'e', 'f', 'f#', 'g', 'g#', 'a', 'a#', 'b']
+    flat_names  = ['c', 'd-', 'd', 'e-', 'e', 'f', 'g-', 'g', 'a-', 'a', 'b-', 'b']
+    
+    base = flat_names[pitch_class] if prefer_flats else sharp_names[pitch_class]
     letter = base[0]
     accidental = base[1:]
     octave_shift = octave
@@ -191,10 +225,10 @@ def split_duration(duration, duration_map_keys):
     result = []
     remaining = duration
     # detect triplet
-    triplet_bases = [1.0, 2.0, 4.0]
+    triplet_bases = [1.0, 2.0, 4.0, 0.25, 0.5, 0.125, 0.0625]
     for base in triplet_bases:
         triplet_val = base * 2 / 3  # e.g. 0.6666, 1.333, 2.666
-        if abs(duration - triplet_val) < 0.02:
+        if abs(duration - triplet_val) < 0.01:
             return [base / 3] * 3
     
     while remaining > 0.01:
@@ -227,7 +261,11 @@ def duration_to_kern(duration, beat_unit=4):
         0.375: "16.", # dotted sixteenth note
         0.3333333: "8", # eighth triplet
         0.25: "16",   # sixteenth note
+        0.166667: "16", 
         0.125: "32",  # 32nd note
+        0.0833333: "32", # sixteenth triplet
+        0.0625: "64", # 64nd note
+        0.04166: "64" # 64nd triplet
     }
     keys = duration_map.keys()
     split = split_duration(duration_in_quarter, keys)
@@ -235,7 +273,13 @@ def duration_to_kern(duration, beat_unit=4):
     is_triplet = False
     if len(split) == 3 and all(abs(split[0] - s) < 0.01 for s in split):
         total = sum(split)
-        if abs(total - 2.0) < 0.1 or abs(total - 1.0) < 0.1 or abs(total - 0.5) < 0.05:
+        if (
+            abs(total - 2.0) < 0.01 or
+            abs(total - 1.0) < 0.01 or
+            abs(total - 0.5) < 0.01 or
+            abs(total - 0.25) < 0.01 or
+            abs(total - 0.125) < 0.01
+        ):
             is_triplet = True
     
     kern_parts = []
@@ -303,7 +347,7 @@ def d_to_duration(kern_val):
     return dur
 
 # melody spine generation
-def melody_to_kern(melody, meter, num_beats):
+def melody_to_kern(melody, meter, num_beats, signature):
     """
     Covert [melody] in [annotations] into kern string list.
     Args:
@@ -345,7 +389,12 @@ def melody_to_kern(melody, meter, num_beats):
         if not isinstance(kern_duration, list):
             kern_duration = [kern_duration]
         
-        kern_pitch = pitch_class_to_kern(pitch_class, octave)
+        if "-" in signature:
+            prefer_flats = True
+        else:
+            prefer_flats = False
+
+        kern_pitch = pitch_class_to_kern(pitch_class, octave, prefer_flats)
         for i, dur in enumerate(kern_duration):
             if i == 0:
                 kern_notes.append(f"{dur}{kern_pitch}")
@@ -376,12 +425,20 @@ def generate_kern(score_metadata):
     kern_lines.append("*clefG2")
     ## key signatures
     key = score_metadata.get('keys', [{}])[0]
-    tonic_pc = key.get('tonic_pitch_class', 0) # C as fallback
-    signature = major_key_signatures.get(tonic_pc, "")
-    kern_lines.append(f"*k[{signature}]")
-    
-    ## tonic
     tonic_name = tonic_identification(key)
+    
+    if "@" in tonic_name:
+        _, mode = tonic_name.split("@")
+    else:
+        _, mode = tonic_name, "major"
+    
+    if mode == 'major':
+        tonic_pc = key.get('tonic_pitch_class', 0) # C as fallback
+        signature = major_key_signatures.get(tonic_pc, "")
+    else:
+        signature = modal_key_signatures.get(mode, {}).get(key.get('tonic_pitch_class', 0), "")
+
+    kern_lines.append(f"*k[{signature}]")
     kern_lines.append(f"*{tonic_name}:")
         
     ## beats
@@ -393,7 +450,7 @@ def generate_kern(score_metadata):
     # ---- Body ----
     melody = score_metadata.get('melody', [{}])
     num_beats = score_metadata.get('num_beats')
-    melody_lines, melody_onsets = melody_to_kern(melody, meter, num_beats)
+    melody_lines, melody_onsets = melody_to_kern(melody, meter, num_beats, signature)
     kern_lines.extend(melody_lines)
     
     # ---- Foot ----

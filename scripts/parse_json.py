@@ -12,6 +12,8 @@ def extract_key_fields(song_data):
     return {
     "title": song_data["hooktheory"]["song"],
     "artist": song_data["hooktheory"]["artist"],
+    "urls": song_data["hooktheory"]["urls"],
+    "youtube": song_data["youtube"],
     "meters": song_data["annotations"]["meters"],
     "keys": song_data["annotations"]["keys"],
     "melody": song_data["annotations"]["melody"],
@@ -35,4 +37,3 @@ if  __name__ == "__main__":
     songs = get_train_songs(data)
     print(f"Loaded {len(songs)} TRAIN songs.")
     print("Example:", songs[0]["title"], "-", songs[0]["artist"])
-

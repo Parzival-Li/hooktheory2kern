@@ -2,41 +2,110 @@ import re
 # dicts
 major_key_signatures = {
     0: "", 7: "f#", 2: "f#c#", 9: "f#c#g#", 4: "f#c#g#d#", 11: "f#c#g#d#a#",
-    6: "f#c#g#d#a#e#", 1: "f#c#g#d#a#e#b#",
-    5: "b-", 10: "b-e-", 3: "b-e-a-", 8: "b-e-a-d-"}
+    6: "f#c#g#d#a#e#", 
+    5: "b-", 10: "b-e-", 3: "b-e-a-", 8: "b-e-a-d-", 1: "b-e-a-d-g-"}
+
+minor_key_signatures = {
+    0:  "b-e-a-", 1:  "f#c#g#d#", 2:  "b-", 3:  "b-e-a-d-g-c-",  
+    4:  "f#", 5:  "b-e-a-d-", 6:  "f#c#g#", 7:  "b-e-",        
+    8:  "f#c#g#d#a#", 9:  "", 10: "b-e-a-d-g-", 11: "f#c#"}
 
 modal_key_signatures = {
     "dorian": {
-        0: "", 2: "f#", 4: "f#c#", 5: "f#c#g#", 7: "f#c#g#d#", 9: "f#c#g#d#a#", 11: "f#c#g#d#a#e#",
-        1: "f#c#g#d#a#e#b#", 10: "b-", 8: "b-e-", 6: "b-e-a-", 3: "b-e-a-d-", 
+        0:  "b-e-",
+        1:  "f#c#g#d#a#", 
+        2:  "",
+        3:  "b-e-a-d-g-",
+        4:  "f#c#",
+        5:  "b-e-a-",
+        6:  "f#c#g#d#", 
+        7:  "b-",
+        8:  "f#c#g#d#a#e#", 
+        9:  "f#",
+        10: "b-e-a-d-", 
+        11: "f#c#g#",
     },
     "phrygian": {
-        0: "b-", 2: "b-e-", 4: "b-e-a-", 5: "b-e-a-d-", 7: "b-e-a-d-g-", 9: "b-e-a-d-g-c-",
+        0:  "b-e-a-d-",
+        1:  "f#c#g#", 
+        2:  "b-e-",
+        3:  "f#c#g#d#a#",
+        4:  "", 
+        5:  "b-e-a-d-g-", 
+        6:  "f#c#", 
+        7:  "b-e-a-",
+        8:  "f#c#g#d#",
+        9:  "b-",
+        10: "f#c#g#d#a#e#",
+        11: "f#", 
     },
     "lydian": {
-        0: "f#", 2: "f#c#", 4: "f#c#g#", 5: "f#c#g#d#", 7: "f#c#g#d#a#", 9: "f#c#g#d#a#e#", 
+        0:  "f#",
+        1:  "b-e-a-d-", 
+        2:  "f#c#g#", 
+        3:  "b-e-",
+        4:  "f#c#g#d#a#",
+        5:  "",
+        6:  "b-e-a-d-g-",
+        7:  "f#c#",
+        8:  "b-e-a-",
+        9:  "f#c#g#d#",
+        10: "b-",
+        11: "f#c#g#d#a#e#",
     },
     "mixolydian": {
-        0: "", 2: "f#", 4: "f#c#", 5: "f#c#g#", 7: "f#c#g#d#", 9: "f#c#g#d#a#", 11: "f#c#g#d#a#e#",
-        10: "b-", 8: "b-e-", 6: "b-e-a-", 3: "b-e-a-d-", 
+        0:  "b-", 
+        1:  "f#c#g#d#a#e#", 
+        2:  "f#",
+        3:  "b-e-a-d-",
+        4:  "f#c#g#",
+        5:  "b-e-",
+        6:  "f#c#g#d#a#",
+        7:  "",
+        8:  "b-e-a-d-g-",
+        9:  "f#c#", 
+        10: "b-e-a-",
+        11: "f#c#g#d#",
     },
     "locrian": {
-        0: "b-e-a-d-", 2: "b-e-a-", 4: "b-e-", 5: "b-", 7: "", 9: "f#", 11: "f#c#", 1: "f#c#g#",
-    }
+        0:  "b-e-a-d-g-",
+        1:  "f#c#",
+        2:  "b-e-a-", 
+        3:  "f#c#g#d#",
+        4:  "b-", 
+        5:  "f#c#g#d#a#e#", 
+        6:  "f#",
+        7:  "b-e-a-d-",
+        8:  "f#c#g#",
+        9:  "b-e-",
+        10: "f#c#g#d#a#",
+        11: "", 
+    },
 }
 
 pc_to_name_major = {
     0: "C", 1: "Db", 2: "D", 3: "Eb", 4: "E", 5: "F",
-    6: "Gb", 7: "G", 8: "Ab", 9: "A", 10: "Bb", 11: "B"
+    6: "F#", 7: "G", 8: "Ab", 9: "A", 10: "Bb", 11: "B"
     }
 
 pc_to_name_minor = {
         0: "c", 1: "c#", 2: "d", 3: "eb", 4: "e", 5: "f",
-        6: "f#", 7: "g", 8: "ab", 9: "a", 10: "bb", 11: "b"
+        6: "f#", 7: "g", 8: "g#", 9: "a", 10: "bb", 11: "b"
     }
 
 # chord identification funcs
-def tonic_identification(key):
+def tonic_and_signature_identification(key):
+    # mapping common modal tonic
+    pc_to_name_sharp = {
+    0: "C", 1: "C#", 2: "D", 3: "D#", 4: "E", 5: "F",
+    6: "F#", 7: "G", 8: "G#", 9: "A", 10: "A#", 11: "B"
+    }
+
+    pc_to_name_flat = {
+        0: "C", 1: "Db", 2: "D", 3: "Eb", 4: "E", 5: "F",
+        6: "Gb", 7: "G", 8: "Ab", 9: "A", 10: "Bb", 11: "B"
+    }
+    
     intervals = key.get('scale_degree_intervals', [])
     tonic_pc = key.get('tonic_pitch_class', 0)
     if intervals[:6] == [2, 2, 1, 2, 2, 2]:
@@ -58,37 +127,39 @@ def tonic_identification(key):
 
     if mode == 'major':
         tonic_name = pc_to_name_major.get(tonic_pc, f"{tonic_pc}")
-        return tonic_name
+        signature = major_key_signatures.get(tonic_pc, "")
+        return tonic_name, signature
+    
     elif mode == 'minor':
         tonic_name = pc_to_name_minor.get(tonic_pc, f"{tonic_pc}")
-        return tonic_name
+        signature = minor_key_signatures.get(tonic_pc, "")
+        return tonic_name, signature
+    
     elif mode in modal_key_signatures:
-        return pc_to_name_major.get(tonic_pc, f"{tonic_pc}") + f"@{mode}"
+        signature = modal_key_signatures[mode].get(tonic_pc, "")
+        if "b" in signature and "#" not in signature:
+            # flat
+            tonic_name = pc_to_name_flat.get(tonic_pc, f"{tonic_pc}") + f"@{mode}"
+        elif "#" in signature and "b" not in signature:
+            # sharp
+            tonic_name = pc_to_name_sharp.get(tonic_pc, f"{tonic_pc}") + f"@{mode}"
+        else:
+            # major as fallback
+            tonic_name = pc_to_name_major.get(tonic_pc, f"{tonic_pc}") + f"@{mode}"
+        return tonic_name, signature
+    
     else:
-        tonic_name = pc_to_name_minor.get(tonic_pc, f"{tonic_pc}")
-        return tonic_name+"?"
+        # major as fallback
+        signature = major_key_signatures.get(tonic_pc, "")
+        tonic_name = pc_to_name_major.get(tonic_pc, f"{tonic_pc}")
+        return tonic_name+"?", signature
 
-def prefer_flats_from_tonic(tonic):
+def prefer_flats_from_tonic(signature):
     '''
     Identify if a tonic is flat
     '''
-    if tonic is None:
-        return False
-    t = tonic.replace('♭', 'b').replace('♯', '#').strip()
-    if 'b' in t:
+    if '-' in signature:
         return True
-    sharp_keys = {
-        'G','D','A','E','B','F#','C#',
-        'Em','Bm','F#m','C#m','G#m','D#m','A#m'
-    }
-    flat_keys = {
-        'F','Bb','Eb','Ab','Db','Gb','Cb',
-        'Dm','Gm','Cm','Fm','Bbm','Ebm','Abm','Dbm','Gbm','Cbm'
-    }
-    if t in flat_keys:
-        return True
-    if t in sharp_keys:
-        return False
     return False
 
 def root_to_name(pc, prefer_flats):
@@ -183,8 +254,8 @@ def quality_from_pcset(pcset: frozenset):
     # fallback
     return ''
 
-def label_chord_from_harmony(harmony, tonic):
-    prefer_flats = prefer_flats_from_tonic(tonic)
+def label_chord_from_harmony(harmony, signature):
+    prefer_flats = prefer_flats_from_tonic(signature)
     root_pc = harmony.get('root_pitch_class', 0)
     root_name = root_to_name(root_pc, prefer_flats)
 
@@ -425,19 +496,8 @@ def generate_kern(score_metadata):
     kern_lines.append("*clefG2")
     ## key signatures
     key = score_metadata.get('keys', [{}])[0]
-    tonic_name = tonic_identification(key)
+    tonic_name, signature = tonic_and_signature_identification(key)
     
-    if "@" in tonic_name:
-        _, mode = tonic_name.split("@")
-    else:
-        _, mode = tonic_name, "major"
-    
-    if mode == 'major':
-        tonic_pc = key.get('tonic_pitch_class', 0) # C as fallback
-        signature = major_key_signatures.get(tonic_pc, "")
-    else:
-        signature = modal_key_signatures.get(mode, {}).get(key.get('tonic_pitch_class', 0), "")
-
     kern_lines.append(f"*k[{signature}]")
     kern_lines.append(f"*{tonic_name}:")
         
@@ -476,39 +536,16 @@ def harmony_to_kern(score_metadata, melody_onsets):
     # initialization
     key = score_metadata.get('keys', [{}])[0]
     harmony = score_metadata.get('harmony')
-    melody = score_metadata.get('melody')
-    tonic_name = tonic_identification(key)
+    # melody = score_metadata.get('melody')
+    _, signature = tonic_and_signature_identification(key)
     
     total_beats = len(melody_onsets)
     total_beats_int = int(total_beats)
     beat_line = ['.'] * total_beats_int
     
-    # melody_idx = 0
-    # harmony_idx = 0
-    # # iterate  
-    # while harmony_idx < len(harmony) and melody_idx < len(melody):
-    #     chord = harmony[harmony_idx]
-    #     onset = chord['onset']
-    #     offset = chord['offset']
-    #     har_duration = offset - onset
-    #     # identify chord
-    #     chord_label = label_chord_from_harmony(chord, tonic_name)
-        
-    #     ## align melody spine
-    #     anchor_idx = melody_idx
-    #     total_mel_dur = 0.0
-
-    #     while melody_idx < len(melody) and total_mel_dur < har_duration:
-    #         mel = melody[melody_idx]
-    #         mel_dur = mel["offset"] - mel["onset"]
-    #         total_mel_dur += mel_dur
-    #         melody_idx += 1
-
-    #     beat_line[anchor_idx] = chord_label
-    #     harmony_idx += 1
     for chord in harmony:
         onset = chord['onset']
-        chord_label = label_chord_from_harmony(chord, tonic_name)
+        chord_label = label_chord_from_harmony(chord, signature)
         
         # find the closet index in melody_onsets
         anchor_idx = next((i for i, t in enumerate(melody_onsets) if t >= onset), None)
